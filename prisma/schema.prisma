@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Series {
+  id           String   @id
+  title        String
+  description  String?
+  languageCode String
+  genre        String?
+  seasonCount  Int      @default(1)
+  adult        Boolean  @default(false)
+  published    Boolean  @default(true)
+
+  episodes     Episode[]
+}
+
+model Episode {
+  id              String   @id
+  seriesId        String
+  seasonNumber    Int      @default(1)
+  episodeNumber   Int      @default(1)
+  title           String
+  languageCode    String
+  durationSeconds Int      @default(480)
+  free            Boolean  @default(true)
+  published       Boolean  @default(true)
+  releaseAt       DateTime @default(now())
+
+  hlsMasterUrl    String?
+  dashMpdUrl      String?
+  offlineAssetUrl String?
+
+  series          Series   @relation(fields: [seriesId], references: [id])
+
+  @@index([seriesId])
+  @@index([languageCode, published])
+}
+
