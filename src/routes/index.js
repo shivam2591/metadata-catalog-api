@@ -1,51 +1,89 @@
 const catalog = require("../catalogService");
 
-module.exports = function(app) {
-
-  // Series
-  app.post("/api/v1/series", async (req, res) => {
+module.exports = function (app) {
+  // Create category
+  app.post("/api/v1/categories", async (req, res) => {
     try {
-      const data = await catalog.createSeries(req.body || {});
-      res.json({ success: true, message: "Series created", data });
+      const data = await catalog.createCategory(req.body || {});
+      res.json({ success: true, message: "Category created", data });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });
     }
   });
 
-  app.get("/api/v1/series", async (req, res) => {
-    const data = await catalog.listSeries();
-    res.json({ success: true, message: "Series list", data });
-  });
-
-  app.get("/api/v1/series/:id", async (req, res) => {
-    const data = await catalog.getSeries(req.params.id);
-    if (!data) return res.status(404).json({ success: false, message: "Series not found" });
-    res.json({ success: true, message: "Series", data });
-  });
-
-  // Episodes
-  app.post("/api/v1/episodes", async (req, res) => {
+  // List all categories
+  app.get("/api/v1/categories", async (req, res) => {
     try {
-      const data = await catalog.createEpisode(req.body || {});
-      res.json({ success: true, message: "Episode created", data });
+      const data = await catalog.listCategories();
+      res.json({ success: true, message: "Category list", data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // Get single category by id
+  app.get("/api/v1/categories/:id", async (req, res) => {
+    try {
+      const data = await catalog.getCategory(req.params.id);
+      if (!data) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
+      }
+      res.json({ success: true, message: "Category", data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // Edit category (name / description / status)
+  app.put("/api/v1/categories/:id", async (req, res) => {
+    try {
+      const data = await catalog.updateCategory(req.params.id, req.body || {});
+      res.json({ success: true, message: "Category updated", data });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });
     }
   });
 
-  app.get("/api/v1/episodes/series/:seriesId", async (req, res) => {
-    const data = await catalog.listEpisodesBySeries(req.params.seriesId);
-    res.json({ success: true, message: "Episodes by series", data });
+  // Update only status (accepts "active" or "not")
+  app.patch("/api/v1/categories/:id/status", async (req, res) => {
+    try {
+      const status =
+        (req.body.status || req.query.status || "").toString().toLowerCase();
+
+      if (!status || (status !== "active" && status !== "not")) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status. Use 'active' or 'not'.",
+        });
+      }
+
+      const data = await catalog.updateCategoryStatus(req.params.id, status);
+      res.json({ success: true, message: "Category status updated", data });
+    } catch (err) {
+      if (err.code === "P2025") {
+        // Prisma: record not found
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
+      }
+      res.status(400).json({ success: false, message: err.message });
+    }
   });
 
-  // Explore feed
-  app.get("/api/v1/explore/feed", async (req, res) => {
-    const language = req.query.language || "hi";
-    const size = Math.max(1, Math.min(100, parseInt(req.query.size || "20", 10) || 20));
-
-    await catalog.seedDummyIfEmpty();
-    const data = await catalog.exploreFeed(language, size);
-
-    res.json({ success: true, message: "Explore feed", data });
+  // Delete category
+  app.delete("/api/v1/categories/:id", async (req, res) => {
+    try {
+      await catalog.deleteCategory(req.params.id);
+      res.json({ success: true, message: "Category deleted" });
+    } catch (err) {
+      if (err.code === "P2025") {
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
+      }
+      res.status(400).json({ success: false, message: err.message });
+    }
   });
 };

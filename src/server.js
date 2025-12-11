@@ -14,11 +14,11 @@ app.get("/health", (req, res) => {
 });
 
 // Service-specific routes will be mounted here.
-require('./routes')(app);
+require("./routes")(app);
 
-app.use('/', express.static(path.join(__dirname, '..', 'public')));
+app.use("/", express.static(path.join(__dirname, "..", "public")));
 
 const PORT = process.env.PORT || 8081;
 app.listen(PORT, () => {
-  console.log(`[$catalog-service] running on port`, PORT);
+  console.log("[catalog-service] running on port", PORT);
 });
