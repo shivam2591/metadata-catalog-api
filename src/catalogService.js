@@ -9,6 +9,23 @@ function genId(prefix) {
   );
 }
 
+// Simple in-memory cache for heavy-read endpoints
+const CATEGORY_CACHE_TTL_MS = Number(process.env.CATEGORY_CACHE_TTL_MS || 10000); // 10s default
+
+let allCategoriesCache = null;
+let allCategoriesCacheAt = 0;
+const searchCache = new Map(); // key: search term, value: { at, data }
+
+function isFresh(ts) {
+  return ts && Date.now() - ts < CATEGORY_CACHE_TTL_MS;
+}
+
+function invalidateCategoryCaches() {
+  allCategoriesCache = null;
+  allCategoriesCacheAt = 0;
+  searchCache.clear();
+}
+
 // Create category
 async function createCategory(dto) {
   if (!dto.name) {
@@ -27,20 +44,56 @@ async function createCategory(dto) {
     else if (status === "not") active = false;
   }
 
-  return prisma.category.create({
+  const category = await prisma.category.create({
     data: {
       name: dto.name,
       description: dto.description || null,
       active,
     },
   });
+
+  invalidateCategoryCaches();
+  return category;
 }
 
-// List all categories
+// List all categories (with cache)
 async function listCategories() {
-  return prisma.category.findMany({
+  if (allCategoriesCache && isFresh(allCategoriesCacheAt)) {
+    return allCategoriesCache;
+  }
+
+  const data = await prisma.category.findMany({
     orderBy: { name: "asc" },
   });
+
+  allCategoriesCache = data;
+  allCategoriesCacheAt = Date.now();
+  return data;
+}
+
+// 🔍 Search categories by name (with cache)
+async function searchCategoriesByName(name) {
+  const term = String(name || "").trim();
+  if (!term) return [];
+
+  const key = term.toLowerCase();
+  const cached = searchCache.get(key);
+  if (cached && isFresh(cached.at)) {
+    return cached.data;
+  }
+
+  const data = await prisma.category.findMany({
+    where: {
+      name: {
+        contains: term,
+        mode: "insensitive",
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  searchCache.set(key, { at: Date.now(), data });
+  return data;
 }
 
 // Get category by id
@@ -65,32 +118,43 @@ async function updateCategory(id, dto) {
     else if (status === "not") data.active = false;
   }
 
-  return prisma.category.update({
+  const category = await prisma.category.update({
     where: { id },
     data,
   });
+
+  invalidateCategoryCaches();
+  return category;
 }
 
 // Update only status using "active" or "not"
 async function updateCategoryStatus(id, status) {
   const normalized = String(status).toLowerCase();
   const active = normalized === "active";
-  return prisma.category.update({
+
+  const category = await prisma.category.update({
     where: { id },
     data: { active },
   });
+
+  invalidateCategoryCaches();
+  return category;
 }
 
 // Delete category
 async function deleteCategory(id) {
-  return prisma.category.delete({
+  const deleted = await prisma.category.delete({
     where: { id },
   });
+
+  invalidateCategoryCaches();
+  return deleted;
 }
 
 module.exports = {
   createCategory,
   listCategories,
+  searchCategoriesByName,
   getCategory,
   updateCategory,
   updateCategoryStatus,

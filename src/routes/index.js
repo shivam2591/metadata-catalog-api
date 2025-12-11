@@ -21,6 +21,24 @@ module.exports = function (app) {
     }
   });
 
+  // 🔍 Search categories by name
+  app.get("/api/v1/categories/search", async (req, res) => {
+    try {
+      const name = (req.query.name || "").toString().trim();
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          message: "Query parameter 'name' is required",
+        });
+      }
+
+      const data = await catalog.searchCategoriesByName(name);
+      res.json({ success: true, message: "Category search results", data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   // Get single category by id
   app.get("/api/v1/categories/:id", async (req, res) => {
     try {
